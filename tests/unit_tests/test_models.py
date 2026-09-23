@@ -51,6 +51,42 @@ from rlinf.utils.env_helpers.delay_sampler import (
 )
 
 
+def test_robodojo_openpi_transforms_preserve_joint_layout(tmp_path):
+    pytest.importorskip("openpi")
+    from openpi import transforms
+
+    from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
+    from rlinf.models.embodiment.openpi.policies.robodojo_policy import (
+        make_robodojo_example,
+    )
+
+    config = get_openpi_config("pi05_robodojo_arx_x5", model_path=str(tmp_path))
+    assert config.model.pi05 and config.model.discrete_state_input
+    assert config.model.action_horizon == 50
+    data = config.data.create(tmp_path, config.model)
+    sample = make_robodojo_example()
+    state = np.arange(14, dtype=np.float32)
+    sample["observation/state"] = state
+    sample["actions"] = np.full((50, 14), 20.0, dtype=np.float32)
+    expected_actions = sample["actions"].copy()
+    encoded = transforms.compose(data.data_transforms.inputs)(sample)
+    np.testing.assert_array_equal(
+        encoded["actions"][:, :12], 20 - np.tile(state[:12], (50, 1))
+    )
+    np.testing.assert_array_equal(encoded["actions"][:, 12:], 20)
+    assert all(encoded["image_mask"].values())
+    for key, source in (
+        ("base_0_rgb", "observation/image"),
+        ("left_wrist_0_rgb", "observation/wrist_image"),
+        ("right_wrist_0_rgb", "observation/extra_view_image"),
+    ):
+        np.testing.assert_array_equal(encoded["image"][key], sample[source])
+    encoded["actions"] = np.pad(encoded["actions"], ((0, 0), (0, 18)))
+    decoded = transforms.compose(data.data_transforms.outputs)(encoded)
+    assert decoded["actions"].shape == (50, 14)
+    np.testing.assert_array_equal(decoded["actions"], expected_actions)
+
+
 class _DummyModel:
     def __init__(self):
         self.device = None

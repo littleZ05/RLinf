@@ -68,7 +68,7 @@ class LeRobotRoboDojoDataConfig(DataConfigFactory):
 
         if self.extra_delta_transform:
             # Joint channels are delta, gripper channels are absolute.
-            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            delta_action_mask = _transforms.make_bool_mask(12, -2)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
